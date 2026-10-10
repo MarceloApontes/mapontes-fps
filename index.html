@@ -1,0 +1,1428 @@
+export const createScene = function () {
+    const scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color4(0.55, 0.75, 0.92, 1);
+    scene.collisionsEnabled = true;
+
+    // ===== ILUMINAÇÃO E JOGADOR =====
+
+    const luz = new BABYLON.HemisphericLight(
+        "luz", new BABYLON.Vector3(0, 1, 0), scene
+    );
+    luz.intensity = 0.9;
+
+    const camera = new BABYLON.UniversalCamera(
+        "jogador", new BABYLON.Vector3(0, 1.7, -12), scene
+    );
+    camera.minZ = 0.05;
+    camera.fov = 0.9;
+    camera.inertia = 0.15;
+    camera.angularSensibility = 2500;
+    camera.speed = 0.35;
+    camera.keysUp = [87];
+    camera.keysDown = [83];
+    camera.keysLeft = [65];
+    camera.keysRight = [68];
+    camera.checkCollisions = true;
+    camera.ellipsoid = new BABYLON.Vector3(0.4, 0.8, 0.4);
+
+    // ===== MATERIAIS =====
+
+    function material(nome, cor) {
+        const m = new BABYLON.StandardMaterial(nome, scene);
+        m.diffuseColor = BABYLON.Color3.FromHexString(cor);
+        return m;
+    }
+
+    const matChao = material("matChao", "#596e47");
+    const matCaixa = material("matCaixa", "#995e2b");
+    const matMuro = material("matMuro", "#737b83");
+    const matBarreira = material("matBarreira", "#52677c");
+    const matArma = material("matArma", "#20242b");
+    const matDetalhe = material("matDetalhe", "#46505e");
+    const matCorpo = material("matCorpo", "#e63b42");
+    const matMembros = material("matMembros", "#a62a35");
+    const matClarao = material("matClarao", "#ffbd25");
+    matClarao.emissiveColor = new BABYLON.Color3(1, 0.7, 0.1);
+    matClarao.disableLighting = true;
+
+    const matKit = material("matKit", "#0bbd70");
+    matKit.emissiveColor = new BABYLON.Color3(0, 0.15, 0.06);
+    const matCruz = material("matCruz", "#ffffff");
+    matCruz.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+
+    // ===== CENÁRIO =====
+
+    const chao = BABYLON.MeshBuilder.CreateGround(
+        "chao", { width: 40, height: 40 }, scene
+    );
+    chao.material = matChao;
+
+    function bloco(nome, x, z, l, a, p, mat) {
+        const mesh = BABYLON.MeshBuilder.CreateBox(
+            nome, { width: l, height: a, depth: p }, scene
+        );
+        mesh.position.set(x, a / 2, z);
+        mesh.material = mat;
+        mesh.checkCollisions = true;
+        return mesh;
+    }
+
+    bloco("caixa1", -4, 0, 2, 2, 2, matCaixa);
+    bloco("caixa2", 4, 3, 2, 3, 2, matCaixa);
+    bloco("caixa3", 0, 8, 3, 2, 2, matCaixa);
+    bloco("coberturaE", -3, -7, 2.5, 2.2, 1.3, matCaixa);
+    bloco("coberturaD", 3, -7, 2.5, 2.2, 1.3, matCaixa);
+
+    // Nova cobertura: aproxime-se e segure C para se esconder.
+    bloco("barreiraBaixa", 0, -6, 2.8, 1.35, 0.6, matBarreira);
+
+    bloco("muroFundo", 0, 20, 40, 3, 1, matMuro);
+    bloco("muroFrente", 0, -20, 40, 3, 1, matMuro);
+    bloco("muroEsquerdo", -20, 0, 1, 3, 40, matMuro);
+    bloco("muroDireito", 20, 0, 1, 3, 40, matMuro);
+    bloco("plataforma", 0, 15, 5, 1.5, 3, matMuro);
+
+    // ===== ARMA =====
+
+    const arma = new BABYLON.TransformNode("arma", scene);
+    arma.parent = camera;
+    arma.position.set(0.3, -0.25, 0.65);
+
+    function peca(nome, l, a, p, x, y, z, mat = matArma) {
+        const mesh = BABYLON.MeshBuilder.CreateBox(
+            nome, { width: l, height: a, depth: p }, scene
+        );
+        mesh.parent = arma;
+        mesh.position.set(x, y, z);
+        mesh.material = mat;
+        mesh.isPickable = false;
+    }
+
+    peca("corpoArma", 0.16, 0.18, 0.55, 0, 0, 0);
+    peca("cano", 0.07, 0.07, 0.3, 0, 0.035, 0.4);
+    peca("cabo", 0.12, 0.23, 0.15, 0, -0.16, -0.12);
+    peca("trilho", 0.07, 0.025, 0.32, 0, 0.1, 0, matDetalhe);
+    peca("miraFrontal", 0.018, 0.045, 0.025, 0, 0.13, 0.25);
+    peca("miraTraseiraE", 0.018, 0.04, 0.03, -0.04, 0.125, -0.2);
+    peca("miraTraseiraD", 0.018, 0.04, 0.03, 0.04, 0.125, -0.2);
+
+    const clarao = BABYLON.MeshBuilder.CreateSphere(
+        "clarao", { diameter: 0.13 }, scene
+    );
+    clarao.parent = arma;
+    clarao.position.set(0, 0.035, 0.59);
+    clarao.material = matClarao;
+    clarao.isPickable = false;
+    clarao.setEnabled(false);
+
+    // ===== INTERFACE =====
+
+    const ui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI(
+        "interface", true, scene
+    );
+
+    const bordaDano = new BABYLON.GUI.Rectangle("bordaDano");
+    bordaDano.width = 1;
+    bordaDano.height = 1;
+    bordaDano.thickness = 12;
+    bordaDano.color = "#ff3838";
+    bordaDano.alpha = 0;
+    bordaDano.isHitTestVisible = false;
+    ui.addControl(bordaDano);
+
+    const topo = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    const centro = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    const baixo = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+
+    function texto(nome, tamanho, altura, alinhamento, deslocamento) {
+        const t = new BABYLON.GUI.TextBlock(nome);
+        t.color = "white";
+        t.fontSize = tamanho;
+        t.fontFamily = "Arial";
+        t.height = altura + "px";
+        t.verticalAlignment = alinhamento;
+        t.top = deslocamento + "px";
+        t.isHitTestVisible = false;
+        t.outlineWidth = 2;
+        t.outlineColor = "#18212b";
+        ui.addControl(t);
+        return t;
+    }
+
+    const placar = texto("placar", 17, 34, topo, 6);
+    const relogio = texto("relogio", 26, 40, topo, 40);
+    const comboTexto = texto("combo", 18, 34, topo, 80);
+    const aviso = texto("aviso", 15, 36, topo, 114);
+    const mira = texto("mira", 30, 40, centro, 0);
+    mira.width = "40px";
+
+    const feedback = texto("feedback", 21, 40, centro, 58);
+    const kitsTexto = texto("kitsTexto", 15, 28, baixo, -120);
+    const estadoTexto = texto("estado", 15, 28, baixo, -92);
+    const recursos = texto("recursos", 22, 42, baixo, -50);
+    const ajuda = texto("ajuda", 13, 42, baixo, -5);
+    ajuda.text =
+        "WASD: andar | Shift: correr | C: alternar agachamento | Botão direito: mirar\n" +
+        "Esquerdo: tiro | R: recarga | Enter: reiniciar | Esc: pausa";
+
+    const painelFinal = new BABYLON.GUI.Rectangle("painelFinal");
+    painelFinal.width = "90%";
+    painelFinal.height = "370px";
+    painelFinal.cornerRadius = 16;
+    painelFinal.thickness = 2;
+    painelFinal.background = "#14202f";
+    painelFinal.isHitTestVisible = false;
+    painelFinal.isVisible = false;
+    ui.addControl(painelFinal);
+
+    const resultado = new BABYLON.GUI.TextBlock("resultado");
+    resultado.color = "white";
+    resultado.fontSize = 20;
+    resultado.fontFamily = "Arial";
+    resultado.textWrapping = true;
+    resultado.isHitTestVisible = false;
+    painelFinal.addControl(resultado);
+
+    // ===== RECORDE =====
+
+    const chaveRecorde = "mapontes_fps_sobrevivencia_v1";
+    let recorde = 0;
+
+    try {
+        const salvo = Number(localStorage.getItem(chaveRecorde));
+        if (Number.isFinite(salvo) && salvo >= 0) recorde = salvo;
+    } catch {}
+
+    // ===== ESTADO =====
+
+    const duracao = 60;
+    const capacidade = 10;
+    const tempoRecarga = 1.4;
+    const velocidadeCorrida = 0.82225;
+    const vidaMaximaInimigo = 100;
+    const duracaoBarraVida = 5; // some 5 segundos apos o ULTIMO acerto
+    const duracaoEsquiva = 2.6; // reacao lateral apos levar dano
+    // Dano por região: cabeça (2 tiros), tronco (3), braço (5), perna (6).
+    const danosPorRegiao = { cabeca: 65, tronco: 34, braco: 22, perna: 18 };
+    const alturaEmPe = 1.7;
+    const alturaAgachado = 1.05;
+
+    let alturaAtual = alturaEmPe;
+    let tempo = 0;
+    let iniciado = false;
+    let terminou = false;
+    let vida = 100;
+    let balas = capacidade;
+    let pontos = 0;
+    let acertos = 0;
+    let headshots = 0;
+    let eliminacoes = 0;
+    let disparos = 0;
+    let sequencia = 0;
+    let melhorSequencia = 0;
+    let kitsUsados = 0;
+    let vidaRecuperada = 0;
+    let recarregando = false;
+    let fimRecarga = 0;
+    let ultimoTiro = -1;
+    let efeitoAte = 0;
+    let acertoAte = 0;
+    let feedbackAte = 0;
+    let danoAte = 0;
+    let mirando = false;
+    let agachamentoAtivo = false;
+    let corAcerto = "#64ff92";
+
+    const teclas = new Set();
+    const rastros = [];
+
+    function estaAtivo() {
+        return iniciado && !terminou &&
+            document.pointerLockElement === canvas &&
+            !document.hidden && document.hasFocus();
+    }
+
+    function estaMirando() {
+        return mirando && !recarregando && estaAtivo();
+    }
+
+    function estaAgachado() {
+        return agachamentoAtivo && estaAtivo();
+    }
+
+    function estaCorrendo() {
+        const shift = teclas.has("ShiftLeft") || teclas.has("ShiftRight");
+        const movimento = ["KeyW", "KeyA", "KeyS", "KeyD"]
+            .some((t) => teclas.has(t));
+
+        return estaAtivo() && shift && movimento &&
+            !estaMirando() && !estaAgachado() && !recarregando;
+    }
+
+    function precisao() {
+        return disparos ? Math.round(acertos / disparos * 100) : 0;
+    }
+
+    function multiplicador(qtd) {
+        return Math.min(5, 1 + Math.floor(Math.max(0, qtd - 1) / 2));
+    }
+
+    function mostrarFeedback(mensagem, cor) {
+        feedback.text = mensagem;
+        feedback.color = cor;
+        feedbackAte = tempo + 0.8;
+    }
+
+    // ===== KITS DE VIDA =====
+
+    const kits = [[-8, -3], [8, -3], [0, 4]].map(([x, z], indice) => {
+        const raiz = new BABYLON.TransformNode("kit" + indice, scene);
+        raiz.position.set(x, 0.8, z);
+
+        function parteKit(nome, l, a, p, px, py, pz, mat) {
+            const mesh = BABYLON.MeshBuilder.CreateBox(
+                nome + indice, { width: l, height: a, depth: p }, scene
+            );
+            mesh.parent = raiz;
+            mesh.position.set(px, py, pz);
+            mesh.material = mat;
+            mesh.isPickable = false;
+        }
+
+        parteKit("caixaKit", 0.7, 0.65, 0.3, 0, 0, 0, matKit);
+
+        [-1, 1].forEach((lado) => {
+            parteKit(
+                "cruzVertical" + lado, 0.13, 0.43, 0.025,
+                0, 0, lado * 0.165, matCruz
+            );
+            parteKit(
+                "cruzHorizontal" + lado, 0.43, 0.13, 0.025,
+                0, 0, lado * 0.165, matCruz
+            );
+        });
+
+        return { raiz, x, z, indice, reapareceEm: 0 };
+    });
+
+    function atualizarKits() {
+        kits.forEach((kit) => {
+            if (!kit.raiz.isEnabled()) {
+                if (tempo < kit.reapareceEm) return;
+                kit.raiz.setEnabled(true);
+            }
+
+            kit.raiz.position.y =
+                0.8 + Math.sin(tempo * 2.5 + kit.indice) * 0.12;
+            kit.raiz.rotation.y = tempo * 0.8;
+
+            const dx = camera.position.x - kit.x;
+            const dz = camera.position.z - kit.z;
+
+            if (dx * dx + dz * dz <= 1.44 && vida < 100) {
+                const recuperado = Math.min(30, 100 - vida);
+                vida += recuperado;
+                vidaRecuperada += recuperado;
+                kitsUsados++;
+                kit.raiz.setEnabled(false);
+                kit.reapareceEm = tempo + 18;
+                mostrarFeedback(`+${recuperado} DE VIDA`, "#64ff92");
+                somCurto(1040, 0.2, 0.07);
+            }
+        });
+    }
+
+    // ===== BONECOS =====
+
+    const bases = [
+        [-7, 0, 5], [-3, 0, 10], [3, 0, 12],
+        [7, 0, 6], [0, 1.5, 15]
+    ];
+
+    const alvos = bases.map((base, indice) => {
+        const raiz = new BABYLON.TransformNode("boneco" + indice, scene);
+
+        function parte(nome, l, a, p, x, y, z, mat, zona = "tronco") {
+            const mesh = BABYLON.MeshBuilder.CreateBox(
+                nome + indice, { width: l, height: a, depth: p }, scene
+            );
+            mesh.parent = raiz;
+            mesh.position.set(x, y, z);
+            mesh.material = mat;
+            mesh.metadata = { indiceAlvo: indice, zona };
+            return mesh;
+        }
+
+        parte("tronco", 0.7, 0.85, 0.4, 0, 1.25, 0, matCorpo);
+        parte("quadril", 0.58, 0.22, 0.36, 0, 0.76, 0, matCorpo);
+        const pernaE = parte(
+            "pernaE", 0.23, 0.65, 0.28, -0.18, 0.325, 0, matMembros, "perna"
+        );
+        const pernaD = parte(
+            "pernaD", 0.23, 0.65, 0.28, 0.18, 0.325, 0, matMembros, "perna"
+        );
+        const bracoE = parte("bracoE", 0.2, 0.75, 0.25, -0.48, 1.18, 0, matMembros, "braco");
+        const bracoD = parte("bracoD", 0.2, 0.75, 0.25, 0.48, 1.18, 0, matMembros, "braco");
+        // Arma simples fixada a frente do inimigo (direcao local +Z).
+        const armaInimiga = BABYLON.MeshBuilder.CreateBox(
+            "armaInimiga" + indice, { width: 0.15, height: 0.13, depth: 0.65 }, scene
+        );
+        armaInimiga.parent = raiz;
+        armaInimiga.position.set(0.17, 1.32, 0.43);
+        armaInimiga.material = matArma;
+        armaInimiga.isPickable = false;
+        // Cano e arma giram em elevacao para acompanhar a altura do jogador.
+        const suporteArma = new BABYLON.TransformNode("suporteArma" + indice, scene);
+        suporteArma.parent = raiz;
+        suporteArma.position.set(0.17, 1.32, 0.12);
+        armaInimiga.parent = suporteArma;
+        armaInimiga.position.set(0, 0, 0.31);
+
+        const matCabeca = material("matCabeca" + indice, "#ffb13b");
+        const cabeca = BABYLON.MeshBuilder.CreateSphere(
+            "cabeca" + indice, { diameter: 0.5, segments: 16 }, scene
+        );
+        cabeca.parent = raiz;
+        cabeca.position.set(0, 1.96, 0);
+        cabeca.material = matCabeca;
+        cabeca.metadata = { indiceAlvo: indice, zona: "cabeca" };
+
+        // Volume invisivel que bloqueia movimento e tiros dos outros inimigos.
+        const colisaoCorpo = BABYLON.MeshBuilder.CreateCylinder(
+            "colisaoCorpo" + indice,
+            { height: 2.1, diameter: 0.95, tessellation: 12 }, scene
+        );
+        colisaoCorpo.parent = raiz;
+        colisaoCorpo.position.y = 1.05;
+        colisaoCorpo.isVisible = false;
+        colisaoCorpo.isPickable = true;
+        colisaoCorpo.metadata = { bloqueioInimigo: indice };
+
+        // Barra de vida 2D acompanha a cabeça de cada inimigo no mundo 3D.
+        const barraVida = new BABYLON.GUI.Rectangle("barraVida" + indice);
+        barraVida.width = "90px";
+        barraVida.height = "15px";
+        barraVida.cornerRadius = 3;
+        barraVida.thickness = 1;
+        barraVida.color = "#ffffff";
+        barraVida.background = "#18212b";
+        barraVida.isHitTestVisible = false;
+        ui.addControl(barraVida);
+        barraVida.linkWithMesh(cabeca);
+        barraVida.linkOffsetY = -45;
+        barraVida.isVisible = false; // nao revela vida antes do primeiro acerto
+
+        const preenchimento = new BABYLON.GUI.Rectangle("vidaRestante" + indice);
+        preenchimento.width = "100%";
+        preenchimento.height = "100%";
+        preenchimento.thickness = 0;
+        preenchimento.background = "#64ff92";
+        preenchimento.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        preenchimento.isHitTestVisible = false;
+        barraVida.addControl(preenchimento);
+
+        const numeroVida = new BABYLON.GUI.TextBlock("numeroVida" + indice);
+        numeroVida.text = "100 HP";
+        numeroVida.color = "white";
+        numeroVida.fontFamily = "Arial";
+        numeroVida.fontWeight = "bold";
+        numeroVida.fontSize = 10;
+        numeroVida.outlineWidth = 2;
+        numeroVida.outlineColor = "#18212b";
+        numeroVida.isHitTestVisible = false;
+        barraVida.addControl(numeroVida);
+
+        return {
+            raiz, colisaoCorpo, pernaE, pernaD, bracoE, bracoD, suporteArma, armaInimiga, matCabeca, indice,
+            barraVida, preenchimento, numeroVida,
+            vida: vidaMaximaInimigo,
+            mostrarVidaAte: 0,
+            esquivaInicio: -100,
+            esquivaAte: 0,
+            ladoEsquiva: indice % 2 === 0 ? 1 : -1,
+            alertaAte: 0,
+            coberturaAte: 0,
+            coberturaX: null,
+            coberturaZ: null,
+            posX: base[0],
+            posZ: base[2],
+            ultimoX: base[0],
+            ultimoZ: base[2],
+            x: base[0], y: base[1], z: base[2],
+            fase: indice * 1.3,
+            velocidade: 0.8 + indice * 0.13,
+            reapareceEm: 0,
+            morrendo: false,
+            morteInicio: 0,
+            proximoAtaque: 5 + indice * 1.1,
+            preparando: false,
+            disparaEm: 0,
+            municao: 4,
+            capacidadeArma: 2,
+            recarregandoArma: false,
+            recargaAte: 0,
+            proximaBuscaCobertura: 0
+        };
+    });
+
+    function atualizarBarraVida(alvo) {
+        const proporcao = Math.max(0, alvo.vida / vidaMaximaInimigo);
+        alvo.preenchimento.width = `${proporcao * 100}%`;
+        alvo.preenchimento.background = proporcao > 0.6
+            ? "#64ff92" : proporcao > 0.3 ? "#ffda75" : "#ff6262";
+        alvo.numeroVida.text = `${alvo.vida} HP`;
+        // So aparece apos sofrer dano. Cada novo acerto renova os 5 segundos.
+        alvo.barraVida.isVisible =
+            !terminou && alvo.raiz.isEnabled() && alvo.vida > 0 &&
+            tempo < alvo.mostrarVidaAte;
+    }
+
+    // Busca uma posicao proxima a uma caixa, no lado oposto ao jogador.
+    // Nao faz teleporte: o inimigo caminha ate o ponto escolhido.
+    const pontosCobertura = [
+        [-4, 0, 2, 2], [4, 3, 2, 2], [0, 8, 3, 2],
+        [-3, -7, 2.5, 1.3], [3, -7, 2.5, 1.3],
+        [0, -6, 2.8, 0.6]
+    ];
+    function escolherCobertura(alvo) {
+        let melhor = null;
+        let menorCusto = Infinity;
+        for (const [cx, cz, largura, profundidade] of pontosCobertura) {
+            const vx = cx - camera.position.x;
+            const vz = cz - camera.position.z;
+            const distancia = Math.hypot(vx, vz);
+            if (distancia < 0.1) continue;
+            // Posiciona o inimigo atras da caixa, visto do jogador.
+            const tx = cx + vx / distancia * (largura / 2 + 0.85);
+            const tz = cz + vz / distancia * (profundidade / 2 + 0.85);
+            if (Math.abs(tx) > 18 || Math.abs(tz) > 18) continue;
+            const custo = Math.hypot(tx - alvo.raiz.position.x, tz - alvo.raiz.position.z);
+            if (custo < menorCusto && custo < 15) {
+                menorCusto = custo;
+                melhor = { x: tx, z: tz };
+            }
+        }
+        return melhor;
+    }
+
+    function atualizarAlvos() {
+        alvos.forEach((alvo) => {
+            if (alvo.morrendo) {
+                alvo.barraVida.isVisible = false;
+                const progresso = Math.min(1, (tempo - alvo.morteInicio) / 0.75);
+                alvo.raiz.rotation.z = -Math.PI * 0.5 * (progresso * progresso * (3 - 2 * progresso));
+                alvo.raiz.position.y = alvo.y - 0.45 * progresso;
+                if (tempo >= alvo.reapareceEm) {
+                    alvo.morrendo = false;
+                    alvo.raiz.rotation.z = 0;
+                    alvo.raiz.position.y = alvo.y;
+                    alvo.raiz.setEnabled(false);
+                } else return;
+            }
+            if (!alvo.raiz.isEnabled()) {
+                alvo.barraVida.isVisible = false;
+                if (tempo < alvo.reapareceEm) return;
+                alvo.vida = vidaMaximaInimigo;
+                alvo.mostrarVidaAte = 0;
+                alvo.esquivaInicio = -100;
+                alvo.esquivaAte = 0;
+                alvo.alertaAte = 0;
+                alvo.coberturaAte = 0;
+                alvo.coberturaX = null;
+                alvo.coberturaZ = null;
+                alvo.posX = alvo.x;
+                alvo.posZ = alvo.z;
+                alvo.ultimoX = alvo.x;
+                alvo.ultimoZ = alvo.z;
+                alvo.raiz.rotation.y = 0;
+                alvo.raiz.rotation.z = 0;
+                alvo.raiz.position.set(alvo.x, alvo.y, alvo.z);
+                alvo.raiz.setEnabled(true);
+                alvo.colisaoCorpo.isPickable = true;
+                atualizarBarraVida(alvo);
+                alvo.proximoAtaque = tempo + 3 + alvo.indice * 0.3;
+                alvo.municao = alvo.capacidadeArma;
+                alvo.recarregandoArma = false;
+                alvo.recargaAte = 0;
+            }
+
+            // Apos levar dano, o inimigo executa uma esquiva lateral em
+            // zigue-zague. O deslocamento suavemente volta a zero.
+            let desvioLateral = 0;
+            const esquivando = tempo < alvo.esquivaAte;
+            if (esquivando) {
+                const progresso = Math.max(0, Math.min(1,
+                    (tempo - alvo.esquivaInicio) / duracaoEsquiva
+                ));
+                const suavizacao = Math.sin(progresso * Math.PI);
+                desvioLateral = alvo.ladoEsquiva * 1.25 * suavizacao *
+                    Math.sin(progresso * Math.PI * 2.5);
+            }
+
+            // IA: patrulha, detecta o jogador e avanca quando tem visao livre.
+            const dx = camera.position.x - alvo.posX;
+            const dz = camera.position.z - alvo.posZ;
+            const distanciaJogador = Math.hypot(dx, dz);
+            const visaoLivre = distanciaJogador < 18 && linhaDeTiro(alvo)?.livre;
+            if (visaoLivre) alvo.alertaAte = tempo + 3;
+            const perseguindo = tempo < alvo.alertaAte;
+            const dtIA = Math.min(0.05, engine.getDeltaTime() / 1000);
+            const buscandoCobertura = tempo < alvo.coberturaAte &&
+                alvo.coberturaX !== null;
+            let destinoX = camera.position.x;
+            let destinoZ = camera.position.z;
+            let velocidadeMovimento = 1.45;
+            let mover = perseguindo && distanciaJogador > 4.5;
+            if (buscandoCobertura) {
+                destinoX = alvo.coberturaX;
+                destinoZ = alvo.coberturaZ;
+                velocidadeMovimento = 2.0;
+                mover = true;
+            }
+            if (mover) {
+                const deltaX = destinoX - alvo.posX;
+                const deltaZ = destinoZ - alvo.posZ;
+                const distanciaDestino = Math.hypot(deltaX, deltaZ);
+                if (distanciaDestino > 0.12) {
+                    const passoIA = Math.min(distanciaDestino, velocidadeMovimento * dtIA);
+                    const proximoX = alvo.posX + deltaX / distanciaDestino * passoIA;
+                    const proximoZ = alvo.posZ + deltaZ / distanciaDestino * passoIA;
+                    const origemIA = new BABYLON.Vector3(alvo.posX, alvo.y + 1, alvo.posZ);
+                    const direcaoIA = new BABYLON.Vector3(
+                        proximoX - alvo.posX, 0, proximoZ - alvo.posZ
+                    );
+                    const raioIA = new BABYLON.Ray(
+                        origemIA, direcaoIA.normalize(), passoIA + 0.55
+                    );
+                    const obstaculoIA = scene.pickWithRay(
+                        raioIA, mesh => mesh.checkCollisions && mesh.isEnabled(), false
+                    );
+                    if (!obstaculoIA?.hit) {
+                        alvo.posX = proximoX;
+                        alvo.posZ = proximoZ;
+                    } else if (buscandoCobertura) {
+                        // Se a rota direta esta bloqueada, tenta contornar lateralmente.
+                        const lado = alvo.indice % 2 ? 1 : -1;
+                        const sx = -deltaZ / distanciaDestino * lado;
+                        const sz = deltaX / distanciaDestino * lado;
+                        const raioLateral = new BABYLON.Ray(
+                            origemIA, new BABYLON.Vector3(sx, 0, sz), 0.75
+                        );
+                        const bloqueioLateral = scene.pickWithRay(
+                            raioLateral, mesh => mesh.checkCollisions && mesh.isEnabled(), false
+                        );
+                        if (!bloqueioLateral?.hit) {
+                            alvo.posX += sx * velocidadeMovimento * dtIA;
+                            alvo.posZ += sz * velocidadeMovimento * dtIA;
+                        }
+                    }
+                }
+            }
+            // Ao perder o jogador, retorna gradualmente para a area original.
+            if (!perseguindo && !buscandoCobertura) {
+                const voltaX = alvo.x - alvo.posX;
+                const voltaZ = alvo.z - alvo.posZ;
+                const distanciaVolta = Math.hypot(voltaX, voltaZ);
+                if (distanciaVolta > 0.03) {
+                    const passoVolta = Math.min(distanciaVolta, 1.1 * dtIA);
+                    alvo.posX += voltaX / distanciaVolta * passoVolta;
+                    alvo.posZ += voltaZ / distanciaVolta * passoVolta;
+                }
+            }
+            const patrulha = (perseguindo || buscandoCobertura) ? 0 : Math.sin(tempo * alvo.velocidade + alvo.fase) * 1.5;
+            alvo.raiz.position.set(
+                alvo.posX + patrulha + desvioLateral,
+                alvo.y,
+                alvo.posZ
+            );
+
+            // Separacao fisica horizontal: impede inimigos de se atravessarem.
+            for (const outro of alvos) {
+                if (outro === alvo || !outro.raiz.isEnabled() || outro.morrendo) continue;
+                const ox = alvo.raiz.position.x - outro.raiz.position.x;
+                const oz = alvo.raiz.position.z - outro.raiz.position.z;
+                const d = Math.hypot(ox, oz);
+                const minimo = 1.05;
+                if (d < minimo) {
+                    const ang = d > 0.001 ? { x: ox / d, z: oz / d } :
+                        { x: Math.cos(alvo.indice * 2.4), z: Math.sin(alvo.indice * 2.4) };
+                    alvo.raiz.position.x += ang.x * (minimo - d);
+                    alvo.raiz.position.z += ang.z * (minimo - d);
+                }
+            }
+            const px = alvo.raiz.position.x - camera.position.x;
+            const pz = alvo.raiz.position.z - camera.position.z;
+            const distPlayer = Math.hypot(px, pz);
+            if (distPlayer < 0.9) {
+                const d = Math.max(0.001, distPlayer);
+                alvo.raiz.position.x += (px / d) * (0.9 - d);
+                alvo.raiz.position.z += (pz / d) * (0.9 - d);
+            }
+            // Corpo acompanha a direcao REAL do deslocamento, com giro suave.
+            const movX = alvo.raiz.position.x - alvo.ultimoX;
+            const movZ = alvo.raiz.position.z - alvo.ultimoZ;
+            if (movX * movX + movZ * movZ > 0.0000005) {
+                const angulo = Math.atan2(movX, movZ);
+                const diferenca = Math.atan2(
+                    Math.sin(angulo - alvo.raiz.rotation.y),
+                    Math.cos(angulo - alvo.raiz.rotation.y)
+                );
+                const fatorGiro = 1 - Math.exp(-9 * dtIA);
+                alvo.raiz.rotation.y += diferenca * fatorGiro;
+            }
+            // Durante a preparacao do disparo, vira para o jogador.
+            if (alvo.preparando) {
+                const vetorAlvo = camera.position.subtract(alvo.raiz.position);
+                const anguloMira = Math.atan2(vetorAlvo.x, vetorAlvo.z);
+                const diferencaMira = Math.atan2(
+                    Math.sin(anguloMira - alvo.raiz.rotation.y),
+                    Math.cos(anguloMira - alvo.raiz.rotation.y)
+                );
+                alvo.raiz.rotation.y += diferencaMira * (1 - Math.exp(-11 * dtIA));
+            }
+            // Ajusta a inclinacao do cano para o jogador em pe ou agachado.
+            const origemCano = alvo.suporteArma.getAbsolutePosition();
+            const distHorizontal = Math.hypot(
+                camera.position.x - origemCano.x,
+                camera.position.z - origemCano.z
+            );
+            const anguloVertical = -Math.atan2(
+                camera.position.y - origemCano.y, Math.max(0.01, distHorizontal)
+            );
+            const alvoElevacao = alvo.preparando ? anguloVertical : 0;
+            alvo.suporteArma.rotation.x +=
+                (alvoElevacao - alvo.suporteArma.rotation.x) * (1 - Math.exp(-10 * dtIA));
+            alvo.ultimoX = alvo.raiz.position.x;
+            alvo.ultimoZ = alvo.raiz.position.z;
+
+            // A barra desaparece depois de 5 s sem tomar outro tiro.
+            // 'tempo' so avanca enquanto a partida estiver ativa.
+            if (alvo.barraVida.isVisible && tempo >= alvo.mostrarVidaAte) {
+                alvo.barraVida.isVisible = false;
+            }
+
+            // Passadas mais amplas e proporcionais ao deslocamento real.
+            const distanciaFrame = Math.hypot(movX, movZ);
+            const velocidadeVisual = Math.min(3.2, distanciaFrame / Math.max(0.008, dtIA));
+            const andando = velocidadeVisual > 0.07;
+            const amplitude = andando ? Math.min(0.78, 0.28 + velocidadeVisual * 0.19) : 0;
+            alvo.fasePasso = (alvo.fasePasso || 0) +
+                dtIA * (andando ? 7 + velocidadeVisual * 2.4 : 0);
+            const ciclo = Math.sin(alvo.fasePasso + alvo.fase);
+            const passo = ciclo * amplitude;
+            alvo.pernaE.rotation.x = passo;
+            alvo.pernaD.rotation.x = -passo;
+            // Movimento vertical leve do corpo acentua o caminhar.
+            alvo.raiz.position.y = alvo.y + (andando ?
+                Math.abs(Math.sin(alvo.fasePasso + alvo.fase)) * 0.065 : 0);
+            // Bracos balancam no sentido oposto as pernas.
+            const balancoBraco = ciclo * amplitude * 0.7;
+            const progressoRecarga = alvo.recarregandoArma ?
+                Math.max(0, Math.min(1, 1 - (alvo.recargaAte - tempo) / 2.1)) : 0;
+            const gestoRecarga = alvo.recarregandoArma ?
+                Math.sin(progressoRecarga * Math.PI * 4) : 0;
+            const destaqueRecarga = alvo.recarregandoArma ?
+                Math.sin(progressoRecarga * Math.PI) : 0;
+            const levantar = alvo.preparando ? -0.65 : -0.22;
+            alvo.bracoE.rotation.x = levantar - balancoBraco -
+                (alvo.recarregandoArma ? 1.1 + gestoRecarga * 0.55 : 0);
+            alvo.bracoD.rotation.x = levantar + balancoBraco +
+                (alvo.recarregandoArma ? 0.8 - gestoRecarga * 0.4 : 0);
+            // Abaixa e inclina bastante a arma durante a troca do carregador.
+            alvo.suporteArma.rotation.z = destaqueRecarga * 0.85;
+            alvo.suporteArma.rotation.y = destaqueRecarga * 0.35;
+            alvo.suporteArma.position.y = 1.32 - destaqueRecarga * 0.35;
+
+            const brilho = alvo.preparando
+                ? 0.4 + Math.abs(Math.sin(tempo * 18)) * 0.6
+                : 0;
+            alvo.matCabeca.emissiveColor.set(brilho, brilho * 0.55, 0);
+        });
+    }
+
+    // ===== ÁUDIO =====
+
+    let audio = null;
+    let ruidoTiro = null;
+
+    function iniciarAudio() {
+        const Classe = window.AudioContext || window.webkitAudioContext;
+        if (!Classe) return;
+
+        if (!audio) {
+            audio = new Classe();
+            const tamanho = Math.floor(audio.sampleRate * 0.12);
+            ruidoTiro = audio.createBuffer(1, tamanho, audio.sampleRate);
+            const dados = ruidoTiro.getChannelData(0);
+            for (let i = 0; i < tamanho; i++) {
+                dados[i] = Math.random() * 2 - 1;
+            }
+        }
+
+        if (audio.state === "suspended") {
+            audio.resume().catch(() => {});
+        }
+    }
+
+    function somTiro() {
+        if (!audio || audio.state !== "running") return;
+
+        const fonte = audio.createBufferSource();
+        const filtro = audio.createBiquadFilter();
+        const volume = audio.createGain();
+        const agora = audio.currentTime;
+
+        fonte.buffer = ruidoTiro;
+        filtro.type = "lowpass";
+        filtro.frequency.value = 2200;
+        volume.gain.setValueAtTime(0.22, agora);
+        volume.gain.exponentialRampToValueAtTime(0.001, agora + 0.12);
+        fonte.connect(filtro);
+        filtro.connect(volume);
+        volume.connect(audio.destination);
+
+        fonte.onended = () => {
+            fonte.disconnect();
+            filtro.disconnect();
+            volume.disconnect();
+        };
+        fonte.start(agora);
+        fonte.stop(agora + 0.12);
+    }
+
+    function somCurto(frequencia, duracaoSom, intensidade) {
+        if (!audio || audio.state !== "running") return;
+
+        const oscilador = audio.createOscillator();
+        const volume = audio.createGain();
+        const agora = audio.currentTime;
+
+        oscilador.type = "triangle";
+        oscilador.frequency.value = frequencia;
+        volume.gain.setValueAtTime(intensidade, agora);
+        volume.gain.exponentialRampToValueAtTime(
+            0.001, agora + duracaoSom
+        );
+        oscilador.connect(volume);
+        volume.connect(audio.destination);
+
+        oscilador.onended = () => {
+            oscilador.disconnect();
+            volume.disconnect();
+        };
+        oscilador.start(agora);
+        oscilador.stop(agora + duracaoSom);
+    }
+
+    // ===== INTERFACE DINÂMICA =====
+
+    function atualizarInterface() {
+        placar.text =
+            `MAPONTES | Pontos: ${pontos} | Abates: ${eliminacoes} | Precisão: ${precisao()}% | Recorde: ${recorde}`;
+
+        const restante = Math.max(0, Math.ceil(duracao - tempo));
+        relogio.text = `SOBREVIVA: ${restante}s`;
+        relogio.color = restante <= 10 ? "#ff9b70" : "white";
+
+        comboTexto.text =
+            `COMBO ${multiplicador(sequencia)}x | Sequência: ${sequencia} | Headshots: ${headshots}`;
+        comboTexto.color = sequencia >= 3 ? "#ffda75" : "white";
+
+        recursos.text = `VIDA: ${vida} / 100   |   ` +
+            (recarregando ? "RECARREGANDO..." : `MUNIÇÃO: ${balas} / ${capacidade}`);
+        recursos.color = vida <= 30 ? "#ff7777" : "white";
+
+        const disponiveis = kits.filter((k) => k.raiz.isEnabled()).length;
+        kitsTexto.text = `KITS DE VIDA DISPONÍVEIS: ${disponiveis}/3`;
+        kitsTexto.color = "#64ff92";
+
+        mira.isVisible = !terminou;
+        mira.text = estaMirando() ? "·" : "+";
+        mira.color = tempo < acertoAte ? corAcerto : "white";
+        feedback.isVisible = !terminou && tempo < feedbackAte;
+
+        estadoTexto.text = !estaAtivo() ? "" :
+            estaAgachado()
+                ? (estaMirando() ? "AGACHADO | MIRANDO" : "AGACHADO")
+                : estaMirando() ? "MIRA APROXIMADA"
+                : estaCorrendo() ? "CORRENDO" : "EM PÉ";
+        estadoTexto.color = estaAgachado() ? "#83d8ff" : "white";
+
+        aviso.color = "white";
+
+        if (terminou) {
+            aviso.text = "Partida encerrada";
+        } else if (!iniciado) {
+            aviso.text = "Clique para começar. Segure C para agachar!";
+        } else if (!estaAtivo()) {
+            aviso.text = "PAUSADO — clique no cenário para continuar";
+            aviso.color = "#ffda75";
+        } else if (alvos.some((a) => a.preparando && a.raiz.isEnabled())) {
+            aviso.text = "INIMIGO PREPARANDO DISPARO — procure cobertura!";
+            aviso.color = "#ffb454";
+        } else if (vida <= 30) {
+            aviso.text = "VIDA BAIXA! Procure um kit verde.";
+            aviso.color = "#ff7777";
+        } else if (recarregando) {
+            aviso.text = "Recarregando — sua sequência está mantida";
+        } else if (balas === 0) {
+            aviso.text = "Sem munição! Pressione R.";
+            aviso.color = "#ffb454";
+        } else {
+            aviso.text = "Agache atrás da barreira baixa para usar a cobertura.";
+        }
+    }
+
+    // ===== PARTIDA =====
+
+    function limparControles() {
+        teclas.clear();
+        mirando = false;
+        camera.cameraDirection.set(0, 0, 0);
+        camera.cameraRotation.set(0, 0);
+    }
+
+    function limparRastros() {
+        rastros.forEach((r) => r.mesh.dispose());
+        rastros.length = 0;
+    }
+
+    function finalizar(vitoria) {
+        terminou = true;
+        recarregando = false;
+        clarao.setEnabled(false);
+        limparControles();
+        camera.detachControl();
+        limparRastros();
+        alvos.forEach((alvo) => { alvo.barraVida.isVisible = false; });
+
+        let mensagemRecorde = `Recorde do modo: ${recorde}`;
+
+        if (pontos > recorde) {
+            recorde = pontos;
+            try {
+                localStorage.setItem(chaveRecorde, String(recorde));
+                mensagemRecorde = `NOVO RECORDE SALVO: ${recorde}!`;
+            } catch {
+                mensagemRecorde = `NOVO RECORDE: ${recorde} (nesta sessão)`;
+            }
+        }
+
+        resultado.text =
+            (vitoria ? "VOCÊ SOBREVIVEU!" : "FIM DE JOGO!") + "\n\n" +
+            `${pontos} pontos | ${eliminacoes} inimigos eliminados\n` +
+            `${disparos} disparos | ${acertos} acertos | ${precisao()}% de precisão\n` +
+            `Headshots: ${headshots} | Melhor sequência: ${melhorSequencia}\n` +
+            `Tempo: ${Math.floor(tempo)}s | Vida: ${vida}\n` +
+            `Kits usados: ${kitsUsados} | Vida recuperada: ${vidaRecuperada}\n\n` +
+            mensagemRecorde + "\n\n" +
+            "Clique no cenário e pressione Enter para repetir";
+
+        painelFinal.color = vitoria ? "#64ff92" : "#ff7777";
+        painelFinal.isVisible = true;
+        bordaDano.alpha = 0;
+        somCurto(vitoria ? 880 : 130, 0.3, 0.07);
+        atualizarInterface();
+    }
+
+    function reiniciar() {
+        tempo = 0;
+        iniciado = true;
+        terminou = false;
+        alturaAtual = alturaEmPe;
+        agachamentoAtivo = false;
+        vida = 100;
+        balas = capacidade;
+        pontos = 0;
+        acertos = 0;
+        headshots = 0;
+        disparos = 0;
+        sequencia = 0;
+        melhorSequencia = 0;
+        kitsUsados = 0;
+        vidaRecuperada = 0;
+        eliminacoes = 0;
+        recarregando = false;
+        fimRecarga = 0;
+        ultimoTiro = -1;
+        efeitoAte = 0;
+        acertoAte = 0;
+        feedbackAte = 0;
+        danoAte = 0;
+
+        limparControles();
+        limparRastros();
+        camera.position.set(0, alturaEmPe, -12);
+        camera.rotation.set(0, 0, 0);
+        camera.ellipsoid.y = 0.8;
+        camera.fov = 0.9;
+        arma.position.set(0.3, -0.25, 0.65);
+        arma.rotation.set(0, 0, 0);
+        painelFinal.isVisible = false;
+        bordaDano.alpha = 0;
+        clarao.setEnabled(false);
+
+        alvos.forEach((alvo) => {
+            alvo.reapareceEm = 0;
+            alvo.morrendo = false;
+            alvo.morteInicio = 0;
+            alvo.fasePasso = 0;
+            alvo.colisaoCorpo.isPickable = true;
+            alvo.raiz.rotation.z = 0;
+            alvo.raiz.position.set(alvo.x, alvo.y, alvo.z);
+            alvo.preparando = false;
+            alvo.municao = alvo.capacidadeArma;
+            alvo.recarregandoArma = false;
+            alvo.recargaAte = 0;
+            alvo.proximaBuscaCobertura = 0;
+            alvo.suporteArma.rotation.z = 0;
+            alvo.suporteArma.rotation.y = 0;
+            alvo.suporteArma.position.y = 1.32;
+            alvo.proximoAtaque = 5 + alvo.indice * 1.1;
+            alvo.vida = vidaMaximaInimigo;
+            alvo.mostrarVidaAte = 0;
+            alvo.esquivaInicio = -100;
+            alvo.esquivaAte = 0;
+            alvo.ladoEsquiva = alvo.indice % 2 === 0 ? 1 : -1;
+            alvo.alertaAte = 0;
+            alvo.coberturaAte = 0;
+            alvo.coberturaX = null;
+            alvo.coberturaZ = null;
+            alvo.posX = alvo.x;
+            alvo.posZ = alvo.z;
+            alvo.ultimoX = alvo.x;
+            alvo.ultimoZ = alvo.z;
+            alvo.raiz.rotation.y = 0;
+            alvo.suporteArma.rotation.x = 0;
+            alvo.matCabeca.emissiveColor.set(0, 0, 0);
+            alvo.raiz.setEnabled(true);
+            atualizarBarraVida(alvo);
+        });
+
+        kits.forEach((kit) => {
+            kit.reapareceEm = 0;
+            kit.raiz.setEnabled(true);
+            kit.raiz.rotation.y = 0;
+            kit.raiz.position.y = 0.8;
+        });
+
+        camera.detachControl();
+        camera.attachControl(canvas, true);
+        atualizarAlvos();
+        atualizarInterface();
+    }
+
+    // ===== ATAQUES INIMIGOS =====
+
+    function linhaDeTiro(alvo) {
+        const origem = alvo.raiz.position.add(new BABYLON.Vector3(0, 1.7, 0));
+        const vetor = camera.position.subtract(origem);
+        const distancia = vetor.length();
+        if (distancia < 0.01 || distancia > 35) return null;
+        const raio = new BABYLON.Ray(origem, vetor.scale(1 / distancia), distancia);
+        const bloqueio = scene.pickWithRay(
+            raio,
+            mesh => mesh.isEnabled() && mesh.isPickable &&
+                (mesh.checkCollisions ||
+                    (mesh.metadata?.bloqueioInimigo !== undefined &&
+                     mesh.metadata.bloqueioInimigo !== alvo.indice &&
+                     !alvos[mesh.metadata.bloqueioInimigo].morrendo)),
+            false
+        );
+        return {
+            origem,
+            destino: bloqueio?.hit ? bloqueio.pickedPoint.clone() : camera.position.clone(),
+            livre: !bloqueio?.hit
+        };
+    }
+
+    function atualizarAtaques() {
+        for (const alvo of alvos) {
+            if (terminou) break;
+            if (!alvo.raiz.isEnabled() || alvo.morrendo) continue;
+
+            // A cada dois disparos, o inimigo precisa recarregar.
+            if (alvo.recarregandoArma) {
+                alvo.preparando = false;
+                if (tempo >= alvo.recargaAte) {
+                    alvo.recarregandoArma = false;
+                    alvo.municao = alvo.capacidadeArma;
+                    alvo.proximoAtaque = tempo + 0.45;
+                    somCurto(410, 0.08, 0.022);
+                } else continue;
+            }
+            if (alvo.municao <= 0) {
+                alvo.recarregandoArma = true;
+                alvo.recargaAte = tempo + 2.1;
+                alvo.preparando = false;
+                // Durante a recarga, tenta se proteger.
+                const cobertura = escolherCobertura(alvo);
+                if (cobertura) {
+                    alvo.coberturaX = cobertura.x;
+                    alvo.coberturaZ = cobertura.z;
+                    alvo.coberturaAte = tempo + 2.1;
+                }
+                somCurto(270, 0.07, 0.02);
+                continue;
+            }
+
+            if (!alvo.preparando && tempo >= alvo.proximoAtaque) {
+                const linha = linhaDeTiro(alvo);
+                if (linha && linha.livre) {
+                    alvo.preparando = true;
+                    alvo.disparaEm = tempo + 1;
+                } else {
+                    alvo.proximoAtaque = tempo + 0.5;
+                }
+            }
+
+            if (alvo.preparando && tempo >= alvo.disparaEm) {
+                alvo.preparando = false;
+                alvo.proximoAtaque = tempo + 2.6 + alvo.indice * 0.25;
+
+                const linha = linhaDeTiro(alvo);
+                if (!linha) continue;
+                // Disparo somente quando o corpo ja estiver apontado ao jogador.
+                const direcaoJogador = camera.position.subtract(alvo.raiz.position);
+                const anguloJogador = Math.atan2(direcaoJogador.x, direcaoJogador.z);
+                const erroMira = Math.abs(Math.atan2(
+                    Math.sin(anguloJogador - alvo.raiz.rotation.y),
+                    Math.cos(anguloJogador - alvo.raiz.rotation.y)
+                ));
+                if (erroMira > 0.22) {
+                    alvo.preparando = true;
+                    alvo.disparaEm = tempo + 0.15;
+                    continue;
+                }
+                alvo.suporteArma.computeWorldMatrix(true);
+                alvo.armaInimiga.computeWorldMatrix(true);
+                const bocaCano = BABYLON.Vector3.TransformCoordinates(
+                    new BABYLON.Vector3(0, 0, 0.325),
+                    alvo.armaInimiga.getWorldMatrix()
+                );
+                alvo.municao--;
+                // Rastro visual parte da boca do cano, nao do centro do boneco.
+                const mesh = BABYLON.MeshBuilder.CreateLines(
+                    "tiroInimigo",
+                    { points: [bocaCano, linha.destino] },
+                    scene
+                );
+                mesh.color = new BABYLON.Color3(1, 0.5, 0.1);
+                mesh.isPickable = false;
+                rastros.push({ mesh, ate: tempo + 0.12 });
+
+                if (linha.livre) {
+                    vida = Math.max(0, vida - 8);
+                    danoAte = tempo + 0.35;
+                    somCurto(110, 0.12, 0.08);
+                    if (vida === 0) finalizar(false);
+                } else {
+                    somCurto(220, 0.04, 0.025);
+                }
+            }
+        }
+    }
+
+    // ===== TIROS DO JOGADOR =====
+
+    function atirar() {
+        if (!estaAtivo() || recarregando) return;
+        if (tempo - ultimoTiro < 0.18) return;
+
+        ultimoTiro = tempo;
+        iniciarAudio();
+
+        if (balas === 0) {
+            somCurto(100, 0.05, 0.06);
+            return;
+        }
+
+        balas--;
+        disparos++;
+        efeitoAte = tempo + 0.09;
+        somTiro();
+
+        const impacto = scene.pickWithRay(
+            camera.getForwardRay(100),
+            (mesh) => mesh.isPickable && mesh.isEnabled() &&
+                mesh.metadata?.bloqueioInimigo === undefined &&
+                (mesh.metadata?.indiceAlvo === undefined ||
+                 !alvos[mesh.metadata.indiceAlvo].morrendo),
+            false
+        );
+        const dados = impacto?.hit ? impacto.pickedMesh?.metadata : null;
+
+        if (dados && dados.indiceAlvo !== undefined) {
+            const alvo = alvos[dados.indiceAlvo];
+            const zona = dados.zona;
+            const dano = danosPorRegiao[zona] ?? danosPorRegiao.tronco;
+            const naCabeca = zona === "cabeca";
+
+            // Cada tiro reduz a vida; apenas um inimigo com 0 HP é eliminado.
+            alvo.vida = Math.max(0, alvo.vida - dano);
+            // Barra visivel apenas apos dano e por 5 segundos do ultimo tiro.
+            alvo.mostrarVidaAte = tempo + duracaoBarraVida;
+            // Sobreviventes tentam desviar dos tiros por alguns segundos.
+            if (alvo.vida > 0) {
+                alvo.alertaAte = tempo + 6;
+                const cobertura = escolherCobertura(alvo);
+                if (cobertura) {
+                    alvo.coberturaX = cobertura.x;
+                    alvo.coberturaZ = cobertura.z;
+                    alvo.coberturaAte = tempo + 4.5;
+                }
+                alvo.esquivaInicio = tempo;
+                alvo.esquivaAte = tempo + duracaoEsquiva;
+                alvo.ladoEsquiva *= -1;
+            }
+            acertos++;
+            sequencia++;
+            if (naCabeca) headshots++;
+            melhorSequencia = Math.max(melhorSequencia, sequencia);
+
+            const bonus = multiplicador(sequencia);
+            const eliminado = alvo.vida === 0;
+            const pontosImpacto = naCabeca ? 25 : zona === "tronco" ? 10 : 8;
+            const ganho = (pontosImpacto + (eliminado ? 30 : 0)) * bonus;
+            pontos += ganho;
+            acertoAte = tempo + 0.2;
+            corAcerto = naCabeca ? "#ffda75" : "#64ff92";
+
+            if (eliminado) {
+                eliminacoes++;
+                alvo.morrendo = true;
+                alvo.coberturaAte = 0;
+                alvo.morteInicio = tempo;
+                alvo.reapareceEm = tempo + 2.75;
+                alvo.colisaoCorpo.isPickable = false;
+                alvo.preparando = false;
+                alvo.recarregandoArma = false;
+                alvo.matCabeca.emissiveColor.set(0, 0, 0);
+            }
+            atualizarBarraVida(alvo);
+
+            const nomeZona = {
+                cabeca: "CABEÇA", tronco: "TRONCO",
+                braco: "BRAÇO", perna: "PERNA"
+            }[zona] || "CORPO";
+            mostrarFeedback(
+                eliminado
+                    ? `ELIMINADO! +${ganho} PONTOS | ${bonus}x`
+                    : `${naCabeca ? "HEADSHOT! " : ""}${nomeZona}: -${dano} HP | +${ganho}`,
+                eliminado ? "#64ff92" : corAcerto
+            );
+            somCurto(eliminado ? 1050 : naCabeca ? 1400 : 820, 0.1, 0.06);
+        } else {
+            mostrarFeedback(
+                sequencia > 0 ? "SEQUÊNCIA INTERROMPIDA" : "ERROU",
+                "#ffb454"
+            );
+            sequencia = 0;
+        }
+
+        atualizarInterface();
+    }
+
+    function recarregar() {
+        if (!estaAtivo() || recarregando || balas === capacidade) return;
+        recarregando = true;
+        fimRecarga = tempo + tempoRecarga;
+        efeitoAte = 0;
+        clarao.setEnabled(false);
+        somCurto(240, 0.1, 0.06);
+        atualizarInterface();
+    }
+
+    // ===== ENTRADAS =====
+
+    const capturarMouse = () => {
+        iniciarAudio();
+        if (document.pointerLockElement !== canvas) {
+            const pedido = canvas.requestPointerLock();
+            if (pedido && pedido.catch) pedido.catch(() => {});
+        }
+    };
+
+    const mudouCaptura = () => {
+        camera.detachControl();
+        limparControles();
+        if (document.pointerLockElement === canvas) {
+            iniciado = true;
+            if (!terminou) camera.attachControl(canvas, true);
+        }
+        atualizarInterface();
+    };
+
+    const pressionarMouse = (evento) => {
+        if (!estaAtivo()) return;
+        if (evento.button === 2) {
+            mirando = true;
+            evento.preventDefault();
+        }
+        if (evento.button === 0) atirar();
+    };
+
+    const soltarMouse = (evento) => {
+        if (evento.button === 2) mirando = false;
+    };
+
+    const bloquearMenu = (evento) => evento.preventDefault();
+
+    const pressionarTecla = (evento) => {
+        if (document.pointerLockElement !== canvas) return;
+        teclas.add(evento.code);
+        if (evento.repeat) return;
+
+        if (evento.code === "KeyC" && estaAtivo()) {
+            evento.preventDefault();
+            agachamentoAtivo = !agachamentoAtivo;
+        }
+        if (evento.code === "KeyR") {
+            evento.preventDefault();
+            recarregar();
+        }
+        if (evento.code === "Enter") {
+            evento.preventDefault();
+            reiniciar();
+        }
+    };
+
+    const soltarTecla = (evento) => teclas.delete(evento.code);
+
+    function pausar() {
+        limparControles();
+        if (document.pointerLockElement === canvas) {
+            document.exitPointerLock();
+        }
+    }
+
+    const mudouVisibilidade = () => {
+        if (document.hidden) pausar();
+    };
+
+    // ===== ATUALIZAÇÃO =====
+
+    scene.onBeforeRenderObservable.add(() => {
+        if (!estaAtivo()) {
+            camera.cameraDirection.set(0, 0, 0);
+            camera.cameraRotation.set(0, 0);
+            camera.position.y = alturaAtual;
+            clarao.setEnabled(false);
+            return;
+        }
+
+        const dt = engine.getDeltaTime() / 1000;
+        const suavidade = 1 - Math.exp(-14 * dt);
+
+        const agachado = estaAgachado();
+        const alturaDesejada = agachado ? alturaAgachado : alturaEmPe;
+        alturaAtual += (alturaDesejada - alturaAtual) * suavidade;
+        camera.position.y = alturaAtual;
+
+        // Ajusta também o volume de colisão.
+        camera.ellipsoid.y = agachado ? 0.5 : 0.8;
+
+        tempo = Math.min(duracao, tempo + dt);
+
+        if (tempo >= duracao) {
+            finalizar(true);
+            return;
+        }
+
+        atualizarAlvos();
+        atualizarKits();
+        atualizarAtaques();
+        if (terminou) return;
+
+        for (let i = rastros.length - 1; i >= 0; i--) {
+            if (tempo >= rastros[i].ate) {
+                rastros[i].mesh.dispose();
+                rastros.splice(i, 1);
+            }
+        }
+
+        bordaDano.alpha = Math.max(0, (danoAte - tempo) / 0.35);
+
+        if (recarregando && tempo >= fimRecarga) {
+            recarregando = false;
+            balas = capacidade;
+            somCurto(460, 0.08, 0.06);
+        }
+
+        const miraAtiva = estaMirando();
+        const corrida = estaCorrendo();
+
+        // Corrida: 0.715 + 15% = 0.82225.
+        camera.speed = agachado
+            ? (miraAtiva ? 0.1 : 0.14)
+            : miraAtiva ? 0.17
+            : corrida ? velocidadeCorrida : 0.35;
+
+        camera.angularSensibility = miraAtiva ? 4200 : 2500;
+
+        const fovDesejado = miraAtiva ? 0.55 : corrida ? 0.98 : 0.9;
+        camera.fov += (fovDesejado - camera.fov) * suavidade;
+
+        const recuo = Math.max(0, (efeitoAte - tempo) / 0.09);
+        const xDesejado = miraAtiva ? 0 : 0.3;
+        let yDesejado = miraAtiva ? -0.17 : -0.25;
+        const zDesejado = miraAtiva ? 0.55 : 0.65;
+        let rotacaoDesejada = 0;
+
+        if (corrida) {
+            yDesejado -= 0.08;
+            rotacaoDesejada = 0.15;
+        }
+
+        if (recarregando) {
+            const progresso = 1 - (fimRecarga - tempo) / tempoRecarga;
+            const movimento = Math.sin(progresso * Math.PI);
+            yDesejado -= movimento * 0.3;
+            rotacaoDesejada = movimento * 0.5;
+        }
+
+        arma.position.x += (xDesejado - arma.position.x) * suavidade;
+        arma.position.y += (yDesejado - arma.position.y) * suavidade;
+        arma.position.z = zDesejado - recuo * 0.08;
+        arma.rotation.x +=
+            (rotacaoDesejada - arma.rotation.x) * suavidade;
+
+        clarao.setEnabled(tempo < efeitoAte && !recarregando);
+        atualizarInterface();
+    });
+
+    // ===== EVENTOS E LIMPEZA =====
+
+    canvas.addEventListener("click", capturarMouse);
+    canvas.addEventListener("mousedown", pressionarMouse);
+    canvas.addEventListener("contextmenu", bloquearMenu);
+    window.addEventListener("mouseup", soltarMouse);
+    window.addEventListener("keydown", pressionarTecla);
+    window.addEventListener("keyup", soltarTecla);
+    window.addEventListener("blur", pausar);
+    document.addEventListener("pointerlockchange", mudouCaptura);
+    document.addEventListener("visibilitychange", mudouVisibilidade);
+
+    scene.onDisposeObservable.add(() => {
+        canvas.removeEventListener("click", capturarMouse);
+        canvas.removeEventListener("mousedown", pressionarMouse);
+        canvas.removeEventListener("contextmenu", bloquearMenu);
+        window.removeEventListener("mouseup", soltarMouse);
+        window.removeEventListener("keydown", pressionarTecla);
+        window.removeEventListener("keyup", soltarTecla);
+        window.removeEventListener("blur", pausar);
+        document.removeEventListener("pointerlockchange", mudouCaptura);
+        document.removeEventListener("visibilitychange", mudouVisibilidade);
+        limparRastros();
+        ui.dispose();
+
+        if (audio && audio.state !== "closed") {
+            audio.close().catch(() => {});
+        }
+    });
+
+    atualizarAlvos();
+    alvos.forEach(atualizarBarraVida); // todas invisiveis ate o primeiro dano
+    atualizarInterface();
+    return scene;
+};
