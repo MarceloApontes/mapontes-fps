@@ -1,3 +1,5 @@
+// MAPONTES FPS ETAPA 227 - fumaca suave na cor da superficie e faiscas discretas
+// MAPONTES FPS ETAPA 226 - impactos nos inimigos com pequenas gotas de sangue suaves
 // MAPONTES FPS ETAPA 225 - cenarios em arquivos separados
 // MAPONTES FPS ETAPA 224 - cidade com 2 facas, 3 coletes azuis e 3 verdes
 // MAPONTES FPS ETAPA 223 - ratos junto aos cantos dos predios e carros removidos
@@ -246,42 +248,52 @@ globalThis.createScene = function () {
 
     const fragmentosImpacto = [];
     const poolFragmentos = [];
-    function obterPedacoFragmento() {
-        const reaproveitado = poolFragmentos.pop();
+    const poolGotas226 = [];
+    function obterPedacoFragmento(sangue226 = false) {
+        const reaproveitado = (sangue226 ? poolGotas226 : poolFragmentos).pop();
         if (reaproveitado && !reaproveitado.isDisposed()) {
             reaproveitado.setEnabled(true);
             return reaproveitado;
         }
-        const novo = BABYLON.MeshBuilder.CreateBox("fragmentoTiro", { size: 1 }, scene);
+        const novo = sangue226
+            ? BABYLON.MeshBuilder.CreateSphere("gotaImpacto226", { diameter: 1, segments: 8 }, scene)
+            : BABYLON.MeshBuilder.CreateBox("fragmentoTiro", { size: 1 }, scene);
+        novo.metadata = { gotaSangue226: sangue226 };
         novo.isPickable = false;
         return novo;
     }
     function devolverPedacoFragmento(malha) {
         malha.setEnabled(false);
-        poolFragmentos.push(malha);
+        malha.visibility = 1;
+        (malha.metadata?.gotaSangue226 ? poolGotas226 : poolFragmentos).push(malha);
     }
     const matParticulaMetal = material("particulaMetal", "#ffd88a");
     matParticulaMetal.emissiveColor = new BABYLON.Color3(0.35, 0.18, 0.04);
-    const matParticulaRoupa = material("particulaRoupa", "#cbd5d8");
+    const matParticulaSangue226 = material("particulaSangue226", "#aa101a");
+    matParticulaSangue226.specularColor = new BABYLON.Color3(0.18, 0.025, 0.025);
     function criarImpacto(posicao, normal, acertouInimigo) {
-        if (!posicao) return;
+        if (!posicao || !acertouInimigo) return;
         const quantidade = efeitosReduzidos ? (acertouInimigo ? 4 : 2) : (acertouInimigo ? 9 : 5);
         for (let i = 0; i < quantidade; i++) {
-            const pedaco = obterPedacoFragmento();
-            pedaco.scaling.setAll(0.035 + Math.random() * 0.055);
+            const pedaco = obterPedacoFragmento(acertouInimigo);
+            const tamanho226 = acertouInimigo ? 0.018 + Math.random() * 0.025 : 0.035 + Math.random() * 0.055;
+            pedaco.scaling.set(tamanho226, tamanho226 * (acertouInimigo ? 1.35 : 1), tamanho226);
+            pedaco.visibility = 1;
             pedaco.rotation.set(0, 0, 0);
             pedaco.position.copyFrom(posicao);
-            pedaco.material = acertouInimigo ? matParticulaRoupa : matParticulaMetal;
+            pedaco.material = acertouInimigo ? matParticulaSangue226 : matParticulaMetal;
             pedaco.isPickable = false;
             const vetor = new BABYLON.Vector3(
                 (Math.random() - 0.5) * 3.2,
                 0.5 + Math.random() * 2.8,
                 (Math.random() - 0.5) * 3.2
             );
-            if (normal) vetor.addInPlace(normal.scale(1.1));
+            if (acertouInimigo) vetor.scaleInPlace(0.48);
+            if (normal) vetor.addInPlace(normal.scale(acertouInimigo ? 0.65 : 1.1));
+            const duracao226 = acertouInimigo ? 0.48 + Math.random() * 0.25 : 0.25 + Math.random() * 0.28;
             fragmentosImpacto.push({
-                mesh: pedaco, velocidade: vetor,
-                fim: tempo + 0.25 + Math.random() * 0.28
+                mesh: pedaco, velocidade: vetor, sangue226: acertouInimigo,
+                duracao226, fim: tempo + duracao226
             });
         }
     }
@@ -293,10 +305,18 @@ globalThis.createScene = function () {
                 fragmentosImpacto.splice(i, 1);
                 continue;
             }
-            f.velocidade.y -= 7.5 * dt;
+            if (f.sangue226) {
+                f.velocidade.scaleInPlace(Math.exp(-1.6 * dt));
+                f.velocidade.y -= 4.8 * dt;
+                f.mesh.visibility = Math.min(1, Math.max(0, (f.fim - tempo) / (f.duracao226 * 0.4)));
+                f.mesh.rotation.x += 0.7 * dt;
+                f.mesh.rotation.z += 0.5 * dt;
+            } else {
+                f.velocidade.y -= 7.5 * dt;
+                f.mesh.rotation.x += 7 * dt;
+                f.mesh.rotation.z += 5 * dt;
+            }
             f.mesh.position.addInPlace(f.velocidade.scale(dt));
-            f.mesh.rotation.x += 7 * dt;
-            f.mesh.rotation.z += 5 * dt;
         }
     }
 
@@ -325,11 +345,67 @@ globalThis.createScene = function () {
     matMarcaRealista.diffuseTexture = texturaMarcaRealista;
     let marcaRealistaCarregada = false;
 
-    const matPoeiraMadeira = material("poeiraMadeira", "#ba8953");
-    const matPoeiraConcreto = material("poeiraConcreto", "#a9afb4");
+    // ETAPA 227: fumaca radial suave, com cor amostrada da textura atingida.
+    const texturaFumaca227 = new BABYLON.DynamicTexture("fumacaImpacto227", 64, scene, false);
+    const ctxFumaca227 = texturaFumaca227.getContext();
+    const gradFumaca227 = ctxFumaca227.createRadialGradient(32, 32, 2, 32, 32, 30);
+    gradFumaca227.addColorStop(0, "rgba(255,255,255,0.45)");
+    gradFumaca227.addColorStop(0.45, "rgba(255,255,255,0.24)");
+    gradFumaca227.addColorStop(1, "rgba(255,255,255,0)");
+    ctxFumaca227.clearRect(0, 0, 64, 64);
+    ctxFumaca227.fillStyle = gradFumaca227;
+    ctxFumaca227.fillRect(0, 0, 64, 64);
+    texturaFumaca227.update(false);
+    texturaFumaca227.hasAlpha = true;
+    const pixelsSuperficie227 = new Map();
+    const materiaisFumaca227 = new Map();
+    function corImpacto227(impacto227) {
+        const superficie227 = impacto227.pickedMesh;
+        let mat227 = superficie227.material;
+        if (mat227?.subMaterials) {
+            const sub227 = superficie227.subMeshes?.[impacto227.subMeshId];
+            mat227 = mat227.subMaterials[sub227?.materialIndex ?? 0];
+        }
+        const tex227 = mat227?.diffuseTexture || mat227?.albedoTexture;
+        const uv227 = impacto227.getTextureCoordinates?.();
+        if (tex227 && uv227 && !pixelsSuperficie227.has(tex227)) {
+            pixelsSuperficie227.set(tex227, null);
+            Promise.resolve().then(() => tex227.readPixels()).then(p227 => {
+                const tamanho227 = tex227.getSize();
+                if (p227 instanceof Uint8Array && p227.length >= tamanho227.width * tamanho227.height * 4)
+                    pixelsSuperficie227.set(tex227, {pixels: p227, ...tamanho227});
+            }).catch(() => {});
+        }
+        const dados227 = pixelsSuperficie227.get(tex227);
+        if (dados227 && uv227) {
+            const envolver227 = n227 => ((n227 % 1) + 1) % 1;
+            const x227 = Math.min(dados227.width - 1, Math.floor(envolver227(uv227.x * tex227.uScale + tex227.uOffset) * dados227.width));
+            const y227 = Math.min(dados227.height - 1, Math.floor(envolver227(uv227.y * tex227.vScale + tex227.vOffset) * dados227.height));
+            const i227 = (y227 * dados227.width + x227) * 4;
+            return new BABYLON.Color3(dados227.pixels[i227] / 255, dados227.pixels[i227 + 1] / 255, dados227.pixels[i227 + 2] / 255);
+        }
+        const cor227 = mat227?.diffuseColor || mat227?.albedoColor;
+        if (cor227 && cor227.r + cor227.g + cor227.b < 2.8) return cor227;
+        return BABYLON.Color3.FromHexString(superficie227.material === matCaixa ? "#6b705a" : "#969389");
+    }
+    function materialFumaca227(cor227) {
+        const valores227 = [cor227.r, cor227.g, cor227.b].map(c227 => Math.round(c227 * 8) / 8);
+        const chave227 = valores227.join("_");
+        if (materiaisFumaca227.has(chave227)) return materiaisFumaca227.get(chave227);
+        const m227 = new BABYLON.StandardMaterial("fumacaCor227_" + chave227, scene);
+        m227.diffuseTexture = texturaFumaca227;
+        m227.diffuseColor = new BABYLON.Color3(...valores227);
+        m227.emissiveColor = m227.diffuseColor.scale(0.25);
+        m227.specularColor = BABYLON.Color3.Black();
+        m227.useAlphaFromDiffuseTexture = true;
+        m227.backFaceCulling = false;
+        m227.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+        materiaisFumaca227.set(chave227, m227);
+        return m227;
+    }
     const poeiraImpactos = [];
-    function registrarImpactoCenario(ponto, normal, superficie) {
-        if (!ponto || !superficie || !superficie.checkCollisions) return;
+    function registrarImpactoCenario(ponto, normal, superficie, impacto227) {
+        if (!ponto || !superficie || (!superficie.checkCollisions && superficie !== chao)) return;
         const madeira = !!(superficie.metadata && superficie.metadata.ehConteiner);
         const direcao = normal && normal.lengthSquared() > 0.01
             ? normal.normalize() : new BABYLON.Vector3(0, 1, 0);
@@ -350,21 +426,33 @@ globalThis.createScene = function () {
         marca.isPickable = false;
         marcasBalas.push({ mesh: marca, fim: tempo + 12 });
         if (marcasBalas.length > limiteMarcas) marcasBalas.shift().mesh.dispose();
-        for (let i = 0; i < 7; i++) {
-            const po = BABYLON.MeshBuilder.CreateBox("poeiraTiro28", {
-                size: 0.025 + Math.random() * 0.06
-            }, scene);
-            po.position.copyFrom(ponto);
-            po.material = madeira ? matPoeiraMadeira : matPoeiraConcreto;
+        const cor227 = corImpacto227(impacto227);
+        const mat227 = materialFumaca227(cor227);
+        const metal227 = superficie.material === matCaixa || superficie.metadata?.ehConteiner;
+        const quantidade227 = efeitosReduzidos ? 2 : 4;
+        for (let i = 0; i < quantidade227; i++) {
+            const po = BABYLON.MeshBuilder.CreatePlane("fumacaTiro227", {size: 0.09 + Math.random() * 0.10}, scene);
+            po.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+            po.position.copyFrom(ponto).addInPlace(direcao.scale(0.04));
+            po.material = mat227;
             po.isPickable = false;
-            poeiraImpactos.push({
-                mesh: po, fim: tempo + 0.3 + Math.random() * 0.35,
-                vel: direcao.scale(0.8 + Math.random() * 1.7).add(new BABYLON.Vector3(
-                    (Math.random() - 0.5) * 2, Math.random() * 1.7,
-                    (Math.random() - 0.5) * 2))
-            });
+            const duracao227 = 0.4 + Math.random() * 0.25;
+            poeiraImpactos.push({mesh: po, fim: tempo + duracao227, duracao227, fumaca227: true,
+                vel: direcao.scale(0.22 + Math.random() * 0.25).add(new BABYLON.Vector3(
+                    (Math.random() - 0.5) * 0.35, 0.12 + Math.random() * 0.15, (Math.random() - 0.5) * 0.35))});
+        }
+        if (metal227 && !efeitosReduzidos) {
+            for (let i = 0; i < 2; i++) {
+                const faisca227 = BABYLON.MeshBuilder.CreateSphere("faiscaImpacto227", {diameter: 0.009, segments: 4}, scene);
+                faisca227.position.copyFrom(ponto).addInPlace(direcao.scale(0.025));
+                faisca227.material = matParticulaMetal;
+                faisca227.isPickable = false;
+                poeiraImpactos.push({mesh: faisca227, fim: tempo + 0.12, duracao227: 0.12,
+                    vel: direcao.scale(0.7).add(new BABYLON.Vector3((Math.random()-0.5)*0.8, Math.random()*0.6, (Math.random()-0.5)*0.8))});
+            }
         }
     }
+
     function atualizarImpactosCenario(dt) {
         for (let i = marcasBalas.length - 1; i >= 0; i--) {
             if (tempo >= marcasBalas[i].fim) {
@@ -374,9 +462,13 @@ globalThis.createScene = function () {
         for (let i = poeiraImpactos.length - 1; i >= 0; i--) {
             const p = poeiraImpactos[i];
             if (tempo >= p.fim) { p.mesh.dispose(); poeiraImpactos.splice(i, 1); continue; }
-            p.vel.y -= dt * 4;
+            const restante227 = Math.max(0, (p.fim - tempo) / p.duracao227);
+            p.mesh.visibility = restante227;
+            if (p.fumaca227) {
+                p.vel.scaleInPlace(Math.exp(-2 * dt));
+                p.mesh.scaling.setAll(1 + (1 - restante227) * 1.6);
+            } else p.vel.y -= dt * 4;
             p.mesh.position.addInPlace(p.vel.scale(dt));
-            p.mesh.rotation.y += dt * 6;
         }
     }
     function limparImpactosCenario() {
@@ -6851,7 +6943,7 @@ globalThis.createScene = function () {
                 impacto.pickedMesh?.metadata?.indiceRato !== undefined);
             if (impacto.pickedMesh?.metadata?.indiceAlvo === undefined) {
                 registrarImpactoCenario(impacto.pickedPoint, normalImpacto,
-                    impacto.pickedMesh);
+                    impacto.pickedMesh, impacto);
             }
             const idAtingido = impacto.pickedMesh?.metadata?.indiceAlvo;
             if (idAtingido !== undefined && alvos[idAtingido]) {
