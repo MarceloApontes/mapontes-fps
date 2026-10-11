@@ -23,14 +23,24 @@
   <div id="falhaInicializacao" role="alert"></div>
   <script>
     const canvas = document.getElementById("renderCanvas");
-    const engine = new BABYLON.Engine(canvas, true, {
-      preserveDrawingBuffer: false,
-      stencil: true,
-      powerPreference: "high-performance"
-    });
-    window.addEventListener("error", (evento) => {
-      console.error("Erro ao iniciar MAPONTES FPS:", evento.error || evento.message);
-    });
+    const painelFalha = document.getElementById("falhaInicializacao");
+    let engine;
+    function mostrarFalhaInicializacao(erro) {
+      console.error("Falha ao iniciar MAPONTES FPS:", erro);
+      const mensagem = String(erro?.message || erro || "erro desconhecido");
+      painelFalha.textContent = /webgl|context/i.test(mensagem)
+        ? "Seu navegador não conseguiu iniciar o WebGL, necessário para renderizar o jogo. No Edge, ative ‘Usar aceleração gráfica quando disponível’ em Configurações > Sistema e desempenho e reinicie o navegador. Se já estiver ativo, atualize o navegador e o driver de vídeo. Detalhe: " + mensagem
+        : "Não foi possível iniciar o jogo. Confira sua conexão com a internet e atualize a página. Detalhe: " + mensagem;
+      painelFalha.classList.add("mostrar");
+    }
+
+    try {
+      if (!window.BABYLON) throw new Error("A biblioteca Babylon.js não carregou. Confira a conexão com a internet.");
+      engine = new BABYLON.Engine(canvas, true, {
+        preserveDrawingBuffer: false,
+        stencil: true,
+        powerPreference: "high-performance"
+      });
 
 const createScene = function () {
     // Origem unica de todos os arquivos (texturas, sons, modelos, icones...).
@@ -7712,17 +7722,13 @@ const createScene = function () {
     return scene;
 };
 
-    try {
-      const scene = createScene();
-      engine.runRenderLoop(() => {
-        if (!scene.isDisposed()) scene.render();
-      });
-      window.addEventListener("resize", () => engine.resize());
+    const scene = createScene();
+    engine.runRenderLoop(() => {
+      if (!scene.isDisposed()) scene.render();
+    });
+    window.addEventListener("resize", () => engine.resize());
     } catch (erro) {
-      console.error("Falha ao iniciar MAPONTES FPS:", erro);
-      const painel = document.getElementById("falhaInicializacao");
-      painel.textContent = "Não foi possível iniciar o jogo. Atualize a página e confira sua conexão com a internet. Detalhes: " + (erro?.message || erro);
-      painel.classList.add("mostrar");
+      mostrarFalhaInicializacao(erro);
     }
   </script>
 </body>
