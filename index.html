@@ -7724,7 +7724,7 @@ const createScene = function () {
 
     const scene = createScene();
     engine.runRenderLoop(() => {
-      if (!scene.isDisposed()) scene.render();
+      if (scene && scene.isDisposed !== true) scene.render();
     });
     window.addEventListener("resize", () => engine.resize());
     } catch (erro) {
