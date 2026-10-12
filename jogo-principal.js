@@ -8415,6 +8415,12 @@ var createScene = function() {
     atualizarInterface();
   }
   function prepararCidadeAbandonada214() {
+    // ETAPA 356: limpar apenas os drops no chao na troca de mapa.
+    // Ampulhetas guardadas no inventario continuam disponiveis com a tecla T.
+    for (const ampulheta356 of despertadoresMapa179) {
+      ampulheta356.raiz.dispose(false, true);
+    }
+    despertadoresMapa179.length = 0;
     const seringaBonus305 = Math.min(1, Math.max(0, capacidadeKits - kitsGuardados));
     const municaoBonus305 = Math.min(balasPorCaixa, Math.max(0, reservaMaxima - balasReserva));
     kitsGuardados += seringaBonus305;
@@ -9318,9 +9324,8 @@ Caixas de municao: ${caixasMunicaoColetadas} | Balas coletadas: ${balasColetadas
       acertoAte = tempo + 0.2;
       corAcerto = naCabeca ? "#ffda75" : "#64ff92";
       if (eliminado) {
-        // ETAPA 355: 25% de chance de ampulheta ao eliminar inimigo no Mapa 1.
-        if (faseMapa214 === 1 &&
-            despertadoresMapa179.length < limiteAmpulhetasNoChao355 &&
+        // ETAPA 356: mesmos drops de ampulhetas nos tres mapas (25% por eliminacao).
+        if (despertadoresMapa179.length < limiteAmpulhetasNoChao355 &&
             Math.random() < chanceDropAmpulheta355) {
           alvo.raiz.computeWorldMatrix(true);
           const posicaoMorte355 = alvo.raiz.getAbsolutePosition();
