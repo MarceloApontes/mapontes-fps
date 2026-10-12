@@ -1,32 +1,35 @@
 from pathlib import Path
-import json, re
-p = Path("index.html")
-html = p.read_text(encoding="utf-8")
+import json
+import re
+
+pagina = Path("index.html")
+html = pagina.read_text(encoding="utf-8")
 match = re.search(r'    const code = (".*");', html)
 if not match:
-    raise RuntimeError("Bundle esperado nao encontrado; sem alteracoes")
+    raise RuntimeError("Bundle embutido nao identificado; nenhum arquivo foi alterado.")
+
 js = json.loads(match.group(1))
-def trocar(antigo, novo):
-    global js
-    if js.count(antigo) != 1:
-        raise RuntimeError("Trecho inesperado: " + antigo[:75])
-    js = js.replace(antigo, novo, 1)
-print("DIAGNOSTICO: bundle chars", len(js))
-for termo in ("intervaloSpawnDespertador200", "proximoSpawnDespertador179", "criarDespertadorMapa179", "eliminacoes++", "despertadoresMapa179"):
-    pos = js.find(termo)
-    print("DIAGNOSTICO:", termo, "ocorrencias", js.count(termo), "contexto", repr(js[max(0,pos-100):pos+180]) if pos >= 0 else "(ausente)")
-trocar("  const intervaloSpawnDespertador200 = 12;\n  let proximoSpawnDespertador179 = intervaloSpawnDespertador200;", "  const chanceDropAmpulheta355 = 0.25;\n  const maximoAmpulhetasNoChao355 = 6;")
-trocar("function criarDespertadorMapa179() {\n    const ponto179 = sortearPosicaoDespertador179();", "function criarDespertadorMapa179(posicaoDrop355) {\n    const ponto179 = posicaoDrop355 || sortearPosicaoDespertador179();")
-trocar("    while (tempo >= proximoSpawnDespertador179) {\n      criarDespertadorMapa179();\n      proximoSpawnDespertador179 += intervaloSpawnDespertador200;\n    }\n", "")
-trocar("        eliminacoes++;\n        alvo.morrendo = true;", """        eliminacoes++;
-        if (faseMapa214 === 1 && despertadoresMapa179.length < maximoAmpulhetasNoChao355 && Math.random() < chanceDropAmpulheta355) {
-          const p355 = alvo.raiz.getAbsolutePosition();
-          const ponto355 = { x: Math.max(-18.5, Math.min(18.5, p355.x)), z: Math.max(-18.5, Math.min(18.5, p355.z)) };
-          criarDespertadorMapa179(ponto355);
-        }
-        alvo.morrendo = true;""")
-js = js.replace("    proximoSpawnDespertador179 = intervaloSpawnDespertador200;\n", "")
+
+# O index atual ja possui o drop da etapa 355; nao reescrever sua logica.
+exigidos = (
+    "chanceDropAmpulheta355",
+    "maximoAmpulhetasNoChao355",
+    "function criarDespertadorMapa179(posicaoDrop355",
+    "eliminacoes++",
+)
+ausentes = [termo for termo in exigidos if termo not in js]
+if ausentes:
+    raise RuntimeError("ETAPA 355 incompleta, faltam: " + ", ".join(ausentes))
+if "proximoSpawnDespertador179" in js or "intervaloSpawnDespertador200" in js:
+    raise RuntimeError("Spawn automatico antigo ainda presente. Abortando para preservar o jogo.")
+if js.count("chanceDropAmpulheta355") < 2:
+    raise RuntimeError("Chance de drop sem uso comprovado. Abortando.")
+
 Path("jogo-principal.js").write_text(js, encoding="utf-8")
-html = html[:match.start()] + "    // ETAPA 355: JavaScript externo\n    const code = await (await fetch('./jogo-principal.js?v=355', {cache:'no-store'})).text();" + html[match.end():]
-p.write_text(html, encoding="utf-8")
-print("ETAPA 355 aplicada: HTML", len(html), "JS", len(js))
+substituicao = '''    // ETAPA 355: codigo integral separado, sem alterar a logica do jogo.
+    const respostaCodigo = await fetch("./jogo-principal.js?v=355", { cache: "no-store" });
+    if (!respostaCodigo.ok) throw new Error("Falha ao carregar jogo-principal.js: HTTP " + respostaCodigo.status);
+    const code = await respostaCodigo.text();'''
+novo_html = html[:match.start()] + substituicao + html[match.end():]
+pagina.write_text(novo_html, encoding="utf-8")
+print("OK: HTML", len(novo_html), "caracteres; JS", len(js), "caracteres. ETAPA 355 preservada.")
