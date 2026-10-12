@@ -191,7 +191,7 @@ var createScene = function() {
   const direitaLanterna338 = new BABYLON.Vector3();
   const baixoLanterna338 = new BABYLON.Vector3();
   scene.onBeforeRenderObservable.add(() => {
-    const ativa338 = faseMapa214 === 2 && lanternaLigada339 && scene.activeCamera === camera;
+    const ativa338 = faseMapa214 === 2 && lanternaLigada339 && !curando && scene.activeCamera === camera;
     if (!ativa338) {
       if (lanternaPeito338.isEnabled()) lanternaPeito338.setEnabled(false);
       return;
@@ -264,7 +264,7 @@ var createScene = function() {
   feixeVolumetrico341.setEnabled(false);
   const alvoDirecao341 = new BABYLON.Vector3();
   scene.onBeforeRenderObservable.add(() => {
-    const ativo341 = faseMapa214 === 2 && lanternaLigada339 && scene.activeCamera === camera;
+    const ativo341 = faseMapa214 === 2 && lanternaLigada339 && !curando && scene.activeCamera === camera;
     if (!ativo341) {
       if (feixeVolumetrico341.isEnabled()) feixeVolumetrico341.setEnabled(false);
       return;
@@ -1172,14 +1172,11 @@ var createScene = function() {
     const mostrar301 = faseMapa214 === 2;
     cercasMapa2_301.forEach((raiz301) => raiz301.setEnabled(mostrar301));
   }
+  // ETAPA 358: apenas quatro cercas internas no Mapa 2.
   const posicoesCercas299 = [
     [-9.1, -8, 0.3],
-    [-5.5, -11, 1.8],
     [8.7, -8.1, 2.6],
-    [5.6, -4.8, 0.85],
     [-8.7, 2.5, 2.1],
-    [8.5, 6.2, 0.45],
-    [-4.7, 9.4, 1.35],
     [4.5, 11, 2.95]
   ];
   BABYLON.SceneLoader.ImportMeshAsync("", BASE_ARQUIVOS + "modelos/concrete_fence.glb", "", scene).then((resultado299) => {
@@ -6333,7 +6330,7 @@ var createScene = function() {
       let alcanceVisao339 = 18;
       if (faseMapa214 === 2) {
         alcanceVisao339 = 8;
-        if (lanternaLigada339 && distanciaJogador <= 17 && scene.activeCamera === camera) {
+        if (lanternaLigada339 && !curando && distanciaJogador <= 17 && scene.activeCamera === camera) {
           const ex = alvo.posX - origemLanterna338.x;
           const ey = alvo.raiz.position.y + 1.15 - origemLanterna338.y;
           const ez = alvo.posZ - origemLanterna338.z;
