@@ -2,7 +2,7 @@ from pathlib import Path
 import json, re
 p = Path("index.html")
 html = p.read_text(encoding="utf-8")
-match = re.search(r'    const code = ("(?:\\\\.|[^"\\\\])*");', html)
+match = re.search(r'    const code = (".*");', html)
 if not match:
     raise RuntimeError("Bundle esperado nao encontrado; sem alteracoes")
 js = json.loads(match.group(1))
