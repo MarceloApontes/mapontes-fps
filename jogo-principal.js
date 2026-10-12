@@ -9324,9 +9324,16 @@ Caixas de municao: ${caixasMunicaoColetadas} | Balas coletadas: ${balasColetadas
       acertoAte = tempo + 0.2;
       corAcerto = naCabeca ? "#ffda75" : "#64ff92";
       if (eliminado) {
-        // ETAPA 356: mesmos drops de ampulhetas nos tres mapas (25% por eliminacao).
-        if (despertadoresMapa179.length < limiteAmpulhetasNoChao355 &&
-            Math.random() < chanceDropAmpulheta355) {
+        // ETAPA 357: diagnostico do sorteio de drop em cada eliminacao.
+        const sorteioAmpulheta357 = Math.random();
+        const haEspacoAmpulheta357 = despertadoresMapa179.length < limiteAmpulhetasNoChao355;
+        const ganhouAmpulheta357 = haEspacoAmpulheta357 && sorteioAmpulheta357 < chanceDropAmpulheta355;
+        console.info("[MAPONTES ETAPA 357] DROP", {
+          mapa: faseMapa214, sorteio: Number(sorteioAmpulheta357.toFixed(3)),
+          chance: chanceDropAmpulheta355, itensNoChao: despertadoresMapa179.length,
+          resultado: ganhouAmpulheta357 ? "GERAR AMPULHETA" : haEspacoAmpulheta357 ? "SEM DROP" : "LIMITE NO CHAO"
+        });
+        if (ganhouAmpulheta357) {
           alvo.raiz.computeWorldMatrix(true);
           const posicaoMorte355 = alvo.raiz.getAbsolutePosition();
           criarDespertadorMapa179({ x: posicaoMorte355.x, z: posicaoMorte355.z });
