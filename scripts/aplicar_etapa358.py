@@ -10,11 +10,12 @@ def trocar(antes, depois):
         raise RuntimeError(f"ETAPA 358 abortada: trecho esperado ocorreu {n} vezes: {antes[:95]}")
     s=s.replace(antes,depois,1)
 
-# A luz real e o cone visual possuem callbacks separados.
-trocar("faseMapa214 === 2 && lanternaLigada339 && scene.activeCamera === camera",
-      "faseMapa214 === 2 && lanternaLigada339 && !curando && scene.activeCamera === camera")
-trocar("faseMapa214 === 2 && lanternaLigada339 && scene.activeCamera === camera",
-      "faseMapa214 === 2 && lanternaLigada339 && !curando && scene.activeCamera === camera")
+# A luz real e o cone visual usam a mesma condicao em dois callbacks.
+condicao_antiga = "faseMapa214 === 2 && lanternaLigada339 && scene.activeCamera === camera"
+if s.count(condicao_antiga) != 2:
+    raise RuntimeError("Esperadas duas condicoes da lanterna no Mapa 2")
+s = s.replace(condicao_antiga,
+              "faseMapa214 === 2 && lanternaLigada339 && !curando && scene.activeCamera === camera")
 
 # Visao dos inimigos precisa respeitar o estado da lanterna durante a cura.
 trocar("if (lanternaLigada339 && distanciaJogador <= 17 && scene.activeCamera === camera) {",
