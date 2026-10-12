@@ -1,0 +1,29 @@
+name: Aplicar ETAPA 358
+on:
+  push:
+    branches: [desenvolvimento-etapa-355]
+    paths:
+      - 'scripts/aplicar_etapa358.py'
+      - '.github/workflows/etapa358.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  atualizar-mapa2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ajustar lanterna e cercas com validacao
+        run: |
+          python3 scripts/aplicar_etapa358.py
+          node --check jogo-principal.js
+      - name: Publicar na branch de desenvolvimento
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jogo-principal.js
+          git commit -m "ETAPA 358: lanterna desliga na cura e menos cercas no mapa 2"
+          git push
