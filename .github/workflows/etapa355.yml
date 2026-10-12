@@ -1,0 +1,31 @@
+name: Preparar ETAPA 355
+on:
+  push:
+    branches: [desenvolvimento-etapa-355]
+    paths:
+      - 'scripts/aplicar_etapa355.py'
+      - '.github/workflows/etapa355.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  migrar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Migrar e aplicar drops
+        run: |
+          python3 scripts/aplicar_etapa355.py
+          node --check jogo-principal.js
+      - name: Publicar na branch de desenvolvimento
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html jogo-principal.js
+          git commit -m "ETAPA 355: ampulhetas por eliminacao e JS externo"
+          git push
