@@ -21,7 +21,8 @@ trocar("        eliminacoes++;\n        alvo.morrendo = true;", """        elimi
           criarDespertadorMapa179(ponto355);
         }
         alvo.morrendo = true;""")
-js = js.replace("    proximoSpawnDespertador179 = intervaloSpawnDespertador200;\n", "")\nPath("jogo-principal.js").write_text(js, encoding="utf-8")
+js = js.replace("    proximoSpawnDespertador179 = intervaloSpawnDespertador200;\n", "")
+Path("jogo-principal.js").write_text(js, encoding="utf-8")
 html = html[:match.start()] + "    // ETAPA 355: JavaScript externo\n    const code = await (await fetch('./jogo-principal.js?v=355', {cache:'no-store'})).text();" + html[match.end():]
 p.write_text(html, encoding="utf-8")
 print("ETAPA 355 aplicada: HTML", len(html), "JS", len(js))
