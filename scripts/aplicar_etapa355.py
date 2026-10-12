@@ -11,6 +11,10 @@ def trocar(antigo, novo):
     if js.count(antigo) != 1:
         raise RuntimeError("Trecho inesperado: " + antigo[:75])
     js = js.replace(antigo, novo, 1)
+print("DIAGNOSTICO: bundle chars", len(js))
+for termo in ("intervaloSpawnDespertador200", "proximoSpawnDespertador179", "criarDespertadorMapa179", "eliminacoes++", "despertadoresMapa179"):
+    pos = js.find(termo)
+    print("DIAGNOSTICO:", termo, "ocorrencias", js.count(termo), "contexto", repr(js[max(0,pos-100):pos+180]) if pos >= 0 else "(ausente)")
 trocar("  const intervaloSpawnDespertador200 = 12;\n  let proximoSpawnDespertador179 = intervaloSpawnDespertador200;", "  const chanceDropAmpulheta355 = 0.25;\n  const maximoAmpulhetasNoChao355 = 6;")
 trocar("function criarDespertadorMapa179() {\n    const ponto179 = sortearPosicaoDespertador179();", "function criarDespertadorMapa179(posicaoDrop355) {\n    const ponto179 = posicaoDrop355 || sortearPosicaoDespertador179();")
 trocar("    while (tempo >= proximoSpawnDespertador179) {\n      criarDespertadorMapa179();\n      proximoSpawnDespertador179 += intervaloSpawnDespertador200;\n    }\n", "")
