@@ -13,7 +13,6 @@ js = json.loads(match.group(1))
 # O index atual ja possui o drop da etapa 355; nao reescrever sua logica.
 exigidos = (
     "chanceDropAmpulheta355",
-    "maximoAmpulhetasNoChao355",
     "function criarDespertadorMapa179(posicaoDrop355",
     "eliminacoes++",
 )
