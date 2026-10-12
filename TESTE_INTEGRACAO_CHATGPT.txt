@@ -1,0 +1,3 @@
+MAPONTES FPS - teste de integracao GitHub com ChatGPT.
+Arquivo criado diretamente na branch main para validar permissao de escrita.
+Nenhum arquivo do jogo foi alterado.
